@@ -417,6 +417,14 @@
                 <button type="button" onclick="clearCart()" class="text-[11px] font-bold text-rose-600 hover:underline">Kosongkan</button>
               </div>
 
+              <div id="pos-owner-date-box" class="hidden p-2.5 rounded-xl bg-amber-50 border border-amber-200 space-y-1">
+                <label for="pos-owner-tx-date" class="block text-[11px] font-extrabold text-amber-900">
+                  Tanggal Transaksi (Khusus Pemilik • Rekap Januari–Sekarang)
+                </label>
+                <input type="date" id="pos-owner-tx-date"
+                  class="w-full px-3 py-1.5 bg-white border border-amber-300 rounded-lg text-xs font-extrabold text-slate-900 outline-none focus:ring-2 focus:ring-amber-500" />
+              </div>
+
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <input type="text" id="pos-customer-name" placeholder="Nama Customer *"
                   class="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-rose-500" />
@@ -2580,6 +2588,7 @@
     function refreshCurrentViewAfterSync() {
       if (!currentUser) return;
       if (currentActiveTab === 'pos') {
+        configurePosDateForRole();
         renderSalesTargetsWidget();
         renderPosQuickDrawerBar();
         populatePosCategories();
@@ -2931,6 +2940,27 @@
       recalculateCartTotals();
     }
 
+    function configurePosDateForRole() {
+      const box = document.getElementById('pos-owner-date-box');
+      const inp = document.getElementById('pos-owner-tx-date');
+      if (!box || !inp) return;
+      if (currentUser && currentUser.role === 'owner') {
+        box.classList.remove('hidden');
+        if (!inp.value) inp.value = getTodayISO();
+      } else {
+        box.classList.add('hidden');
+        inp.value = '';
+      }
+    }
+
+    function getActiveSaleDate() {
+      if (currentUser && currentUser.role === 'owner') {
+        const inp = document.getElementById('pos-owner-tx-date');
+        if (inp && inp.value) return inp.value;
+      }
+      return getTodayISO();
+    }
+
     function processCheckout() {
       if (cart.length === 0) {
         showToast('Keranjang masih kosong!', 'error');
@@ -2951,10 +2981,12 @@
       }
 
       const now = new Date();
-      const saleId = 'INV-' + now.getFullYear().toString().slice(-2) + String(now.getMonth() + 1).padStart(2, '0') + String(now.getDate()).padStart(2, '0') + '-' + String(Math.floor(100 + Math.random() * 900));
+      const txDate = getActiveSaleDate();
+      const dateDigits = txDate.replace(/-/g, '').slice(2);
+      const saleId = 'INV-' + dateDigits + '-' + String(Math.floor(100 + Math.random() * 900));
       const saleRecord = {
         id: saleId,
-        date: getTodayISO(),
+        date: txDate,
         time: now.toTimeString().slice(0, 5),
         cashierName: currentUser.name,
         cashierUsername: currentUser.username,
@@ -2970,6 +3002,7 @@
       };
 
       appState.sales.unshift(saleRecord);
+      appState.sales.sort((a, b) => (b.date + ' ' + b.time).localeCompare(a.date + ' ' + a.time));
 
       if (selectedPaymentMethod === 'Hutang / Piutang') {
         appState.debts.unshift({
